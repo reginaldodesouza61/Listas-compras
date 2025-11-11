@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is member of a list
+    function isMember(listId) {
+      return isAuthenticated() && 
+        request.auth.uid in get(/databases/$(database)/documents/lists/$(listId)).data.members;
+    }
+    
+    // Rules for shopping lists
+    match /lists/{listId} {
+      // Allow read if user is a member
+      allow read: if isAuthenticated() && 
+        request.auth.uid in resource.data.members;
+      
+      // Allow create if user is authenticated and adds themselves as member
+      allow create: if isAuthenticated() && 
+        request.auth.uid in request.resource.data.members;
+      
+      // Allow update/delete if user is a member
+      allow update, delete: if isAuthenticated() && 
+        request.auth.uid in resource.data.members;
+    }
+    
+    // Rules for shopping list items
+    match /items/{itemId} {
+      // Allow read if user is member of the list
+      allow read: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/lists/$(resource.data.listId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/lists/$(resource.data.listId)).data.members;
+      
+      // Allow create if user is authenticated
+      allow create: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/lists/$(request.resource.data.listId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/lists/$(request.resource.data.listId)).data.members;
+      
+      // Allow update/delete if user is member of the list
+      allow update, delete: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/lists/$(resource.data.listId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/lists/$(resource.data.listId)).data.members;
+    }
+  }
+}

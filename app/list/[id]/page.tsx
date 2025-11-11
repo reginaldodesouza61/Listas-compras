@@ -1,0 +1,212 @@
+"use client"
+
+import { useParams, useRouter } from "next/navigation"
+import { useAuth } from "@/lib/auth-context"
+import { useShoppingLists, useShoppingItems } from "@/lib/firestore-hooks"
+import { Button } from "@/components/ui/button"
+import { ArrowLeft, Loader2, Users } from "lucide-react"
+import { AddItemForm } from "@/components/add-item-form"
+import { ShoppingItemComponent } from "@/components/shopping-item"
+import { ShareListDialog } from "@/components/share-list-dialog"
+import { NotificationPermission } from "@/components/notification-permission"
+import { NotifyMembersButton } from "@/components/notify-members-button"
+import { OfflineIndicator } from "@/components/offline-indicator"
+import { useToast } from "@/hooks/use-toast"
+import { useEffect } from "react"
+
+export default function ListPage() {
+  const params = useParams()
+  const router = useRouter()
+  const listId = params.id as string
+  const { user, loading: authLoading } = useAuth()
+  const { lists, loading: listsLoading, shareList } = useShoppingLists()
+  const { items, loading: itemsLoading, addItem, toggleItem, deleteItem, updateItem } = useShoppingItems(listId)
+  const { toast } = useToast()
+
+  const list = lists.find((l) => l.id === listId)
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/")
+    }
+  }, [user, authLoading, router])
+
+  if (authLoading || listsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!list) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">Lista não encontrada</p>
+          <Button onClick={() => router.push("/")}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const handleAddItem = async (
+    name: string,
+    quantity: number | undefined,
+    unitPrice: number | undefined,
+    note: string,
+  ) => {
+    if (!user) return
+    await addItem(listId, name, quantity, unitPrice, note, user.uid)
+  }
+
+  const handleToggleItem = async (itemId: string, completed: boolean) => {
+    await toggleItem(itemId, completed, listId)
+  }
+
+  const handleDeleteItem = async (itemId: string) => {
+    try {
+      await deleteItem(itemId, listId)
+      toast({
+        title: "Item removido",
+        description: "O item foi excluído da lista.",
+      })
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o item.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleEditItem = async (
+    itemId: string,
+    name: string,
+    quantity: number | undefined,
+    unitPrice: number | undefined,
+    note: string,
+  ) => {
+    try {
+      const itemData: any = { name, note }
+
+      if (quantity !== undefined && quantity > 0) {
+        itemData.quantity = quantity
+      } else {
+        itemData.quantity = null
+      }
+
+      if (unitPrice !== undefined && unitPrice > 0) {
+        itemData.unitPrice = unitPrice
+      } else {
+        itemData.unitPrice = null
+      }
+
+      await updateItem(itemId, listId, itemData)
+      toast({
+        title: "Item atualizado",
+        description: "As alterações foram salvas com sucesso.",
+      })
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o item.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const completedCount = items.filter((item) => item.completed).length
+  const totalCount = items.length
+
+  const listTotal = items.reduce((sum, item) => {
+    if (item.quantity && item.unitPrice) {
+      return sum + item.quantity * item.unitPrice
+    }
+    return sum
+  }, 0)
+
+  return (
+    <>
+      <OfflineIndicator />
+      <div className="min-h-screen bg-background pb-20">
+        <header className="border-b border-border bg-card sticky top-0 z-10">
+          <div className="max-w-4xl mx-auto px-4 py-4">
+            <div className="flex items-center gap-3 mb-3">
+              <Button variant="ghost" size="icon" onClick={() => router.push("/")}>
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div className="flex-1">
+                <h1 className="text-xl font-semibold text-foreground">{list.name}</h1>
+                {list.description && <p className="text-sm text-muted-foreground">{list.description}</p>}
+              </div>
+              <NotifyMembersButton listName={list.name} memberCount={list.members.length} />
+              <ShareListDialog
+                listId={listId}
+                shareCode={(list as any).shareCode || "LOADING"}
+                onShareByEmail={(email) => shareList(listId, email)}
+              />
+            </div>
+            {totalCount > 0 && (
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    {list.members.length} {list.members.length === 1 ? "membro" : "membros"}
+                  </span>
+                </div>
+                <span className="text-muted-foreground">
+                  {completedCount} de {totalCount} {totalCount === 1 ? "item" : "itens"}
+                </span>
+              </div>
+            )}
+          </div>
+        </header>
+
+        <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+          <NotificationPermission />
+
+          <div>
+            <AddItemForm onAddItem={handleAddItem} />
+          </div>
+
+          {itemsLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : items.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Nenhum item na lista ainda. Adicione o primeiro!</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {items.map((item) => (
+                <ShoppingItemComponent
+                  key={item.id}
+                  item={item}
+                  onToggle={handleToggleItem}
+                  onDelete={handleDeleteItem}
+                  onEdit={handleEditItem}
+                />
+              ))}
+            </div>
+          )}
+        </main>
+
+        {listTotal > 0 && (
+          <footer className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg">
+            <div className="max-w-4xl mx-auto px-4 py-4">
+              <div className="flex items-center justify-between">
+                <span className="text-lg font-semibold text-foreground">Total da lista:</span>
+                <span className="text-2xl font-bold text-primary">R$ {listTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </footer>
+        )}
+      </div>
+    </>
+  )
+}
