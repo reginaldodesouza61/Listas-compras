@@ -3,7 +3,7 @@
 import { useAuth } from "@/lib/auth-context"
 import { LoginForm } from "@/components/login-form"
 import { Button } from "@/components/ui/button"
-import { LogOut, Loader2 } from "lucide-react"
+import { LogOut, Loader2, Settings } from "lucide-react"
 import { useShoppingLists } from "@/lib/firestore-hooks"
 import { CreateListDialog } from "@/components/create-list-dialog"
 import { ListCard } from "@/components/list-card"
@@ -68,26 +68,33 @@ export default function HomePage() {
       <OfflineIndicator />
       <div className="min-h-screen bg-background">
         <header className="border-b border-border bg-card">
-          <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-foreground">Minhas Listas</h1>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground hidden sm:inline">{user.email}</span>
-              <Button variant="outline" size="sm" onClick={logout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Sair
-              </Button>
+          <div className="max-w-6xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between gap-2">
+              <h1 className="text-lg sm:text-xl font-semibold text-foreground">Minhas Listas</h1>
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm text-muted-foreground hidden sm:inline truncate max-w-[150px]">
+                  {user.email}
+                </span>
+                <Button variant="ghost" size="icon" onClick={() => router.push("/settings")} title="Configurações">
+                  <Settings className="w-4 h-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={logout} className="shrink-0 bg-transparent">
+                  <LogOut className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Sair</span>
+                </Button>
+              </div>
             </div>
           </div>
         </header>
-        <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+        <main className="max-w-6xl mx-auto px-4 py-6 sm:py-8 space-y-6">
           <InstallPrompt />
 
-          <div className="flex items-center justify-between">
+          <div className="space-y-4">
             <div>
-              <h2 className="text-2xl font-bold text-foreground">Listas de Compras</h2>
-              <p className="text-muted-foreground mt-1">Gerencie suas listas compartilhadas</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground">Listas de Compras</h2>
+              <p className="text-sm text-muted-foreground mt-1">Gerencie suas listas compartilhadas</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <JoinListDialog onJoinList={joinListByCode} />
               <CreateListDialog onCreateList={createList} />
             </div>
@@ -100,7 +107,7 @@ export default function HomePage() {
           ) : lists.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground mb-4">Você ainda não tem nenhuma lista de compras.</p>
-              <div className="flex gap-2 justify-center">
+              <div className="flex flex-col sm:flex-row gap-2 justify-center">
                 <JoinListDialog onJoinList={joinListByCode} />
                 <CreateListDialog onCreateList={createList} />
               </div>

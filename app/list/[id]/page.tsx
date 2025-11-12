@@ -8,11 +8,10 @@ import { ArrowLeft, Loader2, Users } from "lucide-react"
 import { AddItemForm } from "@/components/add-item-form"
 import { ShoppingItemComponent } from "@/components/shopping-item"
 import { ShareListDialog } from "@/components/share-list-dialog"
-import { NotificationPermission } from "@/components/notification-permission"
-import { NotifyMembersButton } from "@/components/notify-members-button"
 import { OfflineIndicator } from "@/components/offline-indicator"
 import { useToast } from "@/hooks/use-toast"
 import { useEffect } from "react"
+import { showLocalNotification } from "@/lib/notifications"
 
 export default function ListPage() {
   const params = useParams()
@@ -58,9 +57,14 @@ export default function ListPage() {
     quantity: number | undefined,
     unitPrice: number | undefined,
     note: string,
+    notifyMembers: boolean,
   ) => {
     if (!user) return
     await addItem(listId, name, quantity, unitPrice, note, user.uid)
+
+    if (notifyMembers && list.members.length > 1) {
+      showLocalNotification("Novo item adicionado", `"${name}" foi adicionado à lista "${list.name}"`)
+    }
   }
 
   const handleToggleItem = async (itemId: string, completed: boolean) => {
@@ -132,18 +136,19 @@ export default function ListPage() {
   return (
     <>
       <OfflineIndicator />
-      <div className="min-h-screen bg-background pb-20">
+      <div className="min-h-screen bg-background pb-24">
         <header className="border-b border-border bg-card sticky top-0 z-10">
-          <div className="max-w-4xl mx-auto px-4 py-4">
-            <div className="flex items-center gap-3 mb-3">
-              <Button variant="ghost" size="icon" onClick={() => router.push("/")}>
-                <ArrowLeft className="w-5 h-5" />
+          <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+            <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="shrink-0 mt-1">
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
-              <div className="flex-1">
-                <h1 className="text-xl font-semibold text-foreground">{list.name}</h1>
-                {list.description && <p className="text-sm text-muted-foreground">{list.description}</p>}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">{list.name}</h1>
+                {list.description && (
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">{list.description}</p>
+                )}
               </div>
-              <NotifyMembersButton listName={list.name} memberCount={list.members.length} />
               <ShareListDialog
                 listId={listId}
                 shareCode={(list as any).shareCode || "LOADING"}
@@ -151,9 +156,9 @@ export default function ListPage() {
               />
             </div>
             {totalCount > 0 && (
-              <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm flex-wrap">
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <Users className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground" />
                   <span className="text-muted-foreground">
                     {list.members.length} {list.members.length === 1 ? "membro" : "membros"}
                   </span>
@@ -166,11 +171,9 @@ export default function ListPage() {
           </div>
         </header>
 
-        <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-          <NotificationPermission />
-
+        <main className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
           <div>
-            <AddItemForm onAddItem={handleAddItem} />
+            <AddItemForm onAddItem={handleAddItem} memberCount={list.members.length} />
           </div>
 
           {itemsLoading ? (
@@ -179,7 +182,7 @@ export default function ListPage() {
             </div>
           ) : items.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">Nenhum item na lista ainda. Adicione o primeiro!</p>
+              <p className="text-sm text-muted-foreground">Nenhum item na lista ainda. Adicione o primeiro!</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -198,10 +201,10 @@ export default function ListPage() {
 
         {listTotal > 0 && (
           <footer className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg">
-            <div className="max-w-4xl mx-auto px-4 py-4">
+            <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
               <div className="flex items-center justify-between">
-                <span className="text-lg font-semibold text-foreground">Total da lista:</span>
-                <span className="text-2xl font-bold text-primary">R$ {listTotal.toFixed(2)}</span>
+                <span className="text-base sm:text-lg font-semibold text-foreground">Total da lista:</span>
+                <span className="text-xl sm:text-2xl font-bold text-primary">R$ {listTotal.toFixed(2)}</span>
               </div>
             </div>
           </footer>
