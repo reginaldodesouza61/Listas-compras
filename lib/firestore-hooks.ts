@@ -23,6 +23,7 @@ export interface ShoppingList {
   description?: string
   ownerId: string
   members: string[]
+  memberEmails: { [key: string]: string }
   shareCode: string
   createdAt: Timestamp
   updatedAt: Timestamp
@@ -81,6 +82,7 @@ export function useShoppingLists() {
       description: description || "",
       ownerId: user.uid,
       members: [user.uid],
+      memberEmails: { [user.uid]: user.email },
       shareCode,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -104,7 +106,9 @@ export function useShoppingLists() {
     const usersSnapshot = await getDocs(usersQuery)
 
     if (usersSnapshot.empty) {
-      throw new Error("Usuário não encontrado")
+      throw new Error(
+        "Usuário não encontrado. O usuário convidado precisa criar uma conta no app primeiro para poder participar da lista.",
+      )
     }
 
     const userId = usersSnapshot.docs[0].id
@@ -112,8 +116,27 @@ export function useShoppingLists() {
 
     await updateDoc(listRef, {
       members: arrayUnion(userId),
+      [`memberEmails.${userId}`]: email,
       updatedAt: Timestamp.now(),
     })
+  }
+
+  const removeMember = async (listId: string, userId: string) => {
+    const listRef = doc(db, "lists", listId)
+    const listDoc = await getDocs(query(collection(db, "lists"), where("__name__", "==", listId)))
+
+    if (!listDoc.empty) {
+      const listData = listDoc.docs[0].data()
+      const updatedMembers = listData.members.filter((id: string) => id !== userId)
+      const updatedMemberEmails = { ...listData.memberEmails }
+      delete updatedMemberEmails[userId]
+
+      await updateDoc(listRef, {
+        members: updatedMembers,
+        memberEmails: updatedMemberEmails,
+        updatedAt: Timestamp.now(),
+      })
+    }
   }
 
   const joinListByCode = async (shareCode: string) => {
@@ -136,13 +159,14 @@ export function useShoppingLists() {
 
     await updateDoc(doc(db, "lists", listDoc.id), {
       members: arrayUnion(user.uid),
+      [`memberEmails.${user.uid}`]: user.email,
       updatedAt: Timestamp.now(),
     })
 
     return listDoc.id
   }
 
-  return { lists, loading, createList, updateList, deleteList, shareList, joinListByCode }
+  return { lists, loading, createList, updateList, deleteList, shareList, removeMember, joinListByCode }
 }
 
 export function useShoppingItems(listId: string | null) {
@@ -167,10 +191,12 @@ export function useShoppingItems(listId: string | null) {
         })) as ShoppingItem[]
 
         itemsData.sort((a, b) => {
+          // First, separate by completion status
           if (a.completed !== b.completed) {
             return a.completed ? 1 : -1
           }
-          return b.createdAt.toMillis() - a.createdAt.toMillis()
+          // Then sort alphabetically by name
+          return a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })
         })
 
         setItems(itemsData)

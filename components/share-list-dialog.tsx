@@ -106,7 +106,9 @@ export function ShareListDialog({ listId, shareCode, onShareByEmail }: ShareList
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
-                <p className="text-sm text-muted-foreground">O usuário precisa ter uma conta registrada no app.</p>
+                <p className="text-sm text-muted-foreground">
+                  O usuário precisa já ter criado uma conta no app com este email para poder receber o convite.
+                </p>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Enviando..." : "Enviar Convite"}

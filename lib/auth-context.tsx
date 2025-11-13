@@ -10,7 +10,8 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
 } from "firebase/auth"
-import { auth } from "./firebase"
+import { doc, setDoc } from "firebase/firestore"
+import { auth, db } from "./firebase"
 
 interface AuthContextType {
   user: User | null
@@ -28,7 +29,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        await saveUserToFirestore(user)
+      }
       setUser(user)
       setLoading(false)
     })
@@ -36,17 +40,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe
   }, [])
 
+  const saveUserToFirestore = async (user: User) => {
+    try {
+      const userRef = doc(db, "users", user.uid)
+
+      await setDoc(
+        userRef,
+        {
+          email: user.email,
+          displayName: user.displayName || user.email?.split("@")[0] || "Usuário",
+          photoURL: user.photoURL || null,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      )
+
+      console.log("[v0] User document updated in Firestore:", user.uid)
+    } catch (error) {
+      console.error("[v0] Error saving user to Firestore:", error)
+    }
+  }
+
   const signIn = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password)
   }
 
   const signUp = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password)
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+    await saveUserToFirestore(userCredential.user)
   }
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider()
-    await signInWithPopup(auth, provider)
+    const result = await signInWithPopup(auth, provider)
+    await saveUserToFirestore(result.user)
   }
 
   const logout = async () => {

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, ChevronDown, ChevronUp, ScanBarcode } from "lucide-react"
@@ -11,21 +11,13 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { searchProducts, getProductByBarcode, type OpenFoodFactsProduct } from "@/lib/open-food-facts"
 import { BarcodeScanner } from "@/components/barcode-scanner"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
 
 interface AddItemFormProps {
-  onAddItem: (
-    name: string,
-    quantity: number | undefined,
-    unitPrice: number | undefined,
-    note: string,
-    notifyMembers: boolean,
-  ) => Promise<void>
-  memberCount: number
+  onAddItem: (name: string, quantity: number | undefined, unitPrice: number | undefined, note: string) => Promise<void>
+  existingItems?: Array<{ name: string; completed: boolean }>
 }
 
-export function AddItemForm({ onAddItem, memberCount }: AddItemFormProps) {
+export function AddItemForm({ onAddItem, existingItems = [] }: AddItemFormProps) {
   const [name, setName] = useState("")
   const [quantity, setQuantity] = useState("")
   const [unitPrice, setUnitPrice] = useState("")
@@ -36,8 +28,8 @@ export function AddItemForm({ onAddItem, memberCount }: AddItemFormProps) {
   const [suggestions, setSuggestions] = useState<OpenFoodFactsProduct[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
-  const [notifyMembers, setNotifyMembers] = useState(false)
   const { toast } = useToast()
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const timeoutId = setTimeout(async () => {
@@ -69,6 +61,7 @@ export function AddItemForm({ onAddItem, memberCount }: AddItemFormProps) {
     }
 
     setOpen(false)
+    setTimeout(() => inputRef.current?.focus(), 100)
   }
 
   const handleBarcodeScan = async (barcode: string) => {
@@ -109,18 +102,30 @@ export function AddItemForm({ onAddItem, memberCount }: AddItemFormProps) {
     e.preventDefault()
     if (!name.trim()) return
 
+    const duplicateItem = existingItems.find((item) => item.name.toLowerCase().trim() === name.toLowerCase().trim())
+
+    if (duplicateItem) {
+      const isCompleted = duplicateItem.completed
+      const confirmMessage = isCompleted
+        ? `O produto "${name}" já está na lista (marcado como comprado). Deseja adicionar novamente?`
+        : `O produto "${name}" já está na lista. Deseja adicionar um segundo item com o mesmo nome?`
+
+      if (!confirm(confirmMessage)) {
+        return
+      }
+    }
+
     setLoading(true)
     try {
       const parsedQuantity = quantity ? Number.parseFloat(quantity) : undefined
       const parsedUnitPrice = unitPrice ? Number.parseFloat(unitPrice) : undefined
 
-      await onAddItem(name, parsedQuantity, parsedUnitPrice, note, notifyMembers)
+      await onAddItem(name, parsedQuantity, parsedUnitPrice, note)
       setName("")
       setQuantity("")
       setUnitPrice("")
       setNote("")
       setShowDetails(false)
-      setNotifyMembers(false)
       toast({
         title: "Item adicionado!",
         description: `${name} foi adicionado à lista.`,
@@ -144,6 +149,7 @@ export function AddItemForm({ onAddItem, memberCount }: AddItemFormProps) {
             <PopoverTrigger asChild>
               <div className="flex-1 min-w-0">
                 <Input
+                  ref={inputRef}
                   placeholder="Nome do produto..."
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -152,7 +158,11 @@ export function AddItemForm({ onAddItem, memberCount }: AddItemFormProps) {
                 />
               </div>
             </PopoverTrigger>
-            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+            <PopoverContent
+              className="w-[var(--radix-popover-trigger-width)] p-0"
+              align="start"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
               <Command>
                 <CommandList>
                   <CommandEmpty>
@@ -163,7 +173,7 @@ export function AddItemForm({ onAddItem, memberCount }: AddItemFormProps) {
                         : "Nenhum produto encontrado."}
                   </CommandEmpty>
                   {suggestions.length > 0 && (
-                    <CommandGroup heading="Sugestões do Open Food Facts">
+                    <CommandGroup heading="Produtos Sugeridos">
                       {suggestions.map((product) => (
                         <CommandItem
                           key={product.code}
@@ -241,18 +251,6 @@ export function AddItemForm({ onAddItem, memberCount }: AddItemFormProps) {
               />
               <Input placeholder="Observação" value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
-            {memberCount > 1 && (
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="notify"
-                  checked={notifyMembers}
-                  onCheckedChange={(checked) => setNotifyMembers(!!checked)}
-                />
-                <Label htmlFor="notify" className="text-sm text-muted-foreground cursor-pointer">
-                  Notificar participantes sobre este item
-                </Label>
-              </div>
-            )}
           </div>
         )}
       </form>

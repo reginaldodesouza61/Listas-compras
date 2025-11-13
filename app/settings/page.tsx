@@ -2,22 +2,14 @@
 
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Bell, BellOff, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { requestNotificationPermission, isPushNotificationsEnabled } from "@/lib/notifications"
-import { useToast } from "@/hooks/use-toast"
 
 export default function SettingsPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
-  const { toast } = useToast()
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
-  const [pushAvailable, setPushAvailable] = useState(false)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -25,45 +17,7 @@ export default function SettingsPage() {
     }
   }, [user, authLoading, router])
 
-  useEffect(() => {
-    const checkNotifications = async () => {
-      const available = await isPushNotificationsEnabled()
-      setPushAvailable(available)
-
-      if (typeof window !== "undefined" && "Notification" in window) {
-        setNotificationsEnabled(Notification.permission === "granted")
-      }
-      setLoading(false)
-    }
-    checkNotifications()
-  }, [])
-
-  const handleToggleNotifications = async () => {
-    if (notificationsEnabled) {
-      toast({
-        title: "Notificações desabilitadas",
-        description: "Você pode reabilitar nas configurações do navegador.",
-      })
-      return
-    }
-
-    const token = await requestNotificationPermission()
-    if (token) {
-      setNotificationsEnabled(true)
-      toast({
-        title: "Notificações habilitadas!",
-        description: "Você receberá atualizações das suas listas.",
-      })
-    } else {
-      toast({
-        title: "Permissão negada",
-        description: "Não foi possível habilitar as notificações.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  if (authLoading || loading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -85,32 +39,6 @@ export default function SettingsPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {notificationsEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
-              Notificações Push
-            </CardTitle>
-            <CardDescription>
-              Receba notificações quando houver atualizações nas suas listas compartilhadas
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {pushAvailable ? (
-              <div className="flex items-center justify-between">
-                <Label htmlFor="notifications" className="flex-1 cursor-pointer">
-                  {notificationsEnabled ? "Notificações ativadas" : "Ativar notificações"}
-                </Label>
-                <Switch id="notifications" checked={notificationsEnabled} onCheckedChange={handleToggleNotifications} />
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Notificações push não estão configuradas. Consulte o guia de configuração do Firebase.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader>
             <CardTitle>Sobre o Aplicativo</CardTitle>

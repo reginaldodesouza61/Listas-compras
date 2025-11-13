@@ -4,23 +4,25 @@ import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useShoppingLists, useShoppingItems } from "@/lib/firestore-hooks"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Loader2, Users } from "lucide-react"
+import { ArrowLeft, Loader2, Users, Search } from "lucide-react"
 import { AddItemForm } from "@/components/add-item-form"
 import { ShoppingItemComponent } from "@/components/shopping-item"
 import { ShareListDialog } from "@/components/share-list-dialog"
+import { ManageMembersDialog } from "@/components/manage-members-dialog"
 import { OfflineIndicator } from "@/components/offline-indicator"
 import { useToast } from "@/hooks/use-toast"
-import { useEffect } from "react"
-import { showLocalNotification } from "@/lib/notifications"
+import { useEffect, useState } from "react"
+import { Input } from "@/components/ui/input"
 
 export default function ListPage() {
   const params = useParams()
   const router = useRouter()
   const listId = params.id as string
   const { user, loading: authLoading } = useAuth()
-  const { lists, loading: listsLoading, shareList } = useShoppingLists()
+  const { lists, loading: listsLoading, shareList, removeMember } = useShoppingLists()
   const { items, loading: itemsLoading, addItem, toggleItem, deleteItem, updateItem } = useShoppingItems(listId)
   const { toast } = useToast()
+  const [searchQuery, setSearchQuery] = useState("")
 
   const list = lists.find((l) => l.id === listId)
 
@@ -57,14 +59,9 @@ export default function ListPage() {
     quantity: number | undefined,
     unitPrice: number | undefined,
     note: string,
-    notifyMembers: boolean,
   ) => {
     if (!user) return
     await addItem(listId, name, quantity, unitPrice, note, user.uid)
-
-    if (notifyMembers && list.members.length > 1) {
-      showLocalNotification("Novo item adicionado", `"${name}" foi adicionado à lista "${list.name}"`)
-    }
   }
 
   const handleToggleItem = async (itemId: string, completed: boolean) => {
@@ -123,8 +120,14 @@ export default function ListPage() {
     }
   }
 
-  const completedCount = items.filter((item) => item.completed).length
-  const totalCount = items.length
+  const handleRemoveMember = async (userId: string) => {
+    await removeMember(listId, userId)
+  }
+
+  const filteredItems = items.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+
+  const completedCount = filteredItems.filter((item) => item.completed).length
+  const totalCount = filteredItems.length
 
   const listTotal = items.reduce((sum, item) => {
     if (item.quantity && item.unitPrice) {
@@ -149,11 +152,20 @@ export default function ListPage() {
                   <p className="text-xs sm:text-sm text-muted-foreground truncate">{list.description}</p>
                 )}
               </div>
-              <ShareListDialog
-                listId={listId}
-                shareCode={(list as any).shareCode || "LOADING"}
-                onShareByEmail={(email) => shareList(listId, email)}
-              />
+              <div className="flex gap-2 shrink-0">
+                <ManageMembersDialog
+                  listId={listId}
+                  memberIds={list.members}
+                  ownerId={list.ownerId}
+                  currentUserId={user?.uid || ""}
+                  onRemoveMember={handleRemoveMember}
+                />
+                <ShareListDialog
+                  listId={listId}
+                  shareCode={(list as any).shareCode || "LOADING"}
+                  onShareByEmail={(email) => shareList(listId, email)}
+                />
+              </div>
             </div>
             {totalCount > 0 && (
               <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm flex-wrap">
@@ -173,20 +185,39 @@ export default function ListPage() {
 
         <main className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
           <div>
-            <AddItemForm onAddItem={handleAddItem} memberCount={list.members.length} />
+            <AddItemForm
+              onAddItem={handleAddItem}
+              existingItems={items.map((item) => ({ name: item.name, completed: item.completed }))}
+            />
           </div>
+
+          {items.length > 0 && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar itens..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          )}
 
           {itemsLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
-          ) : items.length === 0 ? (
+          ) : filteredItems.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-sm text-muted-foreground">Nenhum item na lista ainda. Adicione o primeiro!</p>
+              <p className="text-sm text-muted-foreground">
+                {searchQuery
+                  ? "Nenhum item encontrado com esse termo."
+                  : "Nenhum item na lista ainda. Adicione o primeiro!"}
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
-              {items.map((item) => (
+              {filteredItems.map((item) => (
                 <ShoppingItemComponent
                   key={item.id}
                   item={item}
